@@ -1,1 +1,1 @@
-check-manifest
+check-manifest == 0.50
