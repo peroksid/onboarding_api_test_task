@@ -1,0 +1,44 @@
+<html>
+    <head>
+        <link href="data:image/x-icon;base64,AAABAAEAEBACAAEAAQCwAAAAFgAAACgAAAAQAAAAIAAAAAEAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" rel="icon" type="image/x-icon" />
+    </head>
+    <body>
+        <form id="upload-form">
+            <input type="file" id="file-upload">
+            <button type="submit">Upload file</button>
+        </form>
+    </body>
+    
+    <script type="text/javascript">
+
+
+        document.getElementById('upload-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            uploadFile();
+        });
+
+        async function uploadFile() {
+            // authenticate here later
+            const fileInput = document.getElementById('file-upload');
+            const file = fileInput.files[0];
+
+            //const uploadResource = apiClient.initiateUpload(
+            console.log(
+                file.name,      // name
+                file.size,      // size
+                file.type,      // type
+                await hashFile(file)  // file hash
+            )
+        }
+
+        async function hashFile(file) {
+            const arrayBuffer = await file.slice(0, file.size).arrayBuffer();
+            const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(digest));
+            const message = hashArray.map((x) => x.toString(16)).join('');
+            return message;
+        }
+
+
+    </script>
+</html>

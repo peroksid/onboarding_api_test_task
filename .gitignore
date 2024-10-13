@@ -1,0 +1,4 @@
+.venv
+__pycache__
+*.pyc
+src/onboarding_api.egg-info/*
