@@ -1,3 +1,2 @@
-def finalize_upload(upload_id):
-    # TODO: actually encode
-    pass
+def finalize_upload(chunks):
+    print(chunks)

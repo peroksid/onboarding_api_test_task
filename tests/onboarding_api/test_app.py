@@ -9,6 +9,7 @@ from fastapi import BackgroundTasks
 from fastapi.testclient import TestClient
 from importlib_resources import files
 from onboarding_api.app import app
+from onboarding_api.crud import ChunkRow
 from onboarding_api.db import get_pool
 from onboarding_api.storage import save_file
 from onboarding_api.tasks import finalize_upload
@@ -68,7 +69,12 @@ def test_initiate_upload(mocker):
 def test_upload_chunk(
     mocker, complete_chunk_count, expected_chunk_count, assert_add_task
 ):
+    upload_id = 424242
     expected_chunk_id = 424242
+    final_chunks = [
+        ChunkRow(id=1, upload_id=upload_id, number=1, path='/tmp/fake_storage/1/1'),
+        ChunkRow(id=1, upload_id=upload_id, number=1, path='/tmp/fake_storage/1/2')
+    ]
 
     def get_pool_override():
         mock = mocker.MagicMock()
@@ -78,6 +84,7 @@ def test_upload_chunk(
             (complete_chunk_count, expected_chunk_count),
             expected_chunk_id,  # chunk db id
         ]
+        mock.connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchall.return_value = final_chunks
         return mock
 
     def save_file_override():
@@ -103,7 +110,6 @@ def test_upload_chunk(
         "b64_bytes": content_b64,
     }
 
-    upload_id = 424242
     response = client.post(
         f"/upload/{upload_id}/chunk",
         headers={"x-session-token": session_token},
@@ -116,7 +122,7 @@ def test_upload_chunk(
     assert data["chunk_id"] == expected_chunk_id
     if assert_add_task:
         spy.assert_called_once_with(
-            mocker.ANY, finalize_upload, upload_id  # instance's self
+            mocker.ANY, finalize_upload, final_chunks
         )
     else:
         spy.assert_not_called()

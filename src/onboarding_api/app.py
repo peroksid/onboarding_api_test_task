@@ -7,7 +7,7 @@ from fastapi import BackgroundTasks, Header, HTTPException, FastAPI, status
 from fastapi.responses import HTMLResponse
 from importlib_resources import files
 
-from .crud import create_upload, upload_exists, chunk_exists, create_chunk
+from .crud import create_upload, upload_exists, chunk_exists, create_chunk, list_chunks
 from .dependencies import PoolDep, SaveFileDep, UUID4Dep
 from .schemas import (
     InitiateUploadInput,
@@ -78,6 +78,6 @@ def upload_chunk(
         pool, upload_id=upload_id, chunk_number=input.number, path=chunk_path
     )
     if complete_chunk_count == expected_chunk_count:
-        background_tasks.add_task(finalize_upload, upload_id)
+        background_tasks.add_task(finalize_upload, list_chunks(pool, upload_id=upload_id))
 
     return UploadChunkOutput(chunk_id=chunk_id)

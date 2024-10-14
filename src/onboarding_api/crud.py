@@ -1,3 +1,5 @@
+from pydantic import BaseModel
+
 from .schemas import InitiateUploadInput
 
 
@@ -34,6 +36,24 @@ def upload_exists(pool, upload_id: int, session_token: str) -> bool:
             [upload_id, session_token],
         )
         return cursor.fetchone()[0] == 1
+
+
+class ChunkRow(BaseModel):
+    id: int
+    upload_id: int
+    number: int
+    path: str
+
+
+def list_chunks(pool, upload_id: int):
+    with pool.connection() as conn, conn.cursor(row_factory=ChunkRow) as cursor:
+        cursor.execute(
+            """
+            select * from chunks where upload_id = %s order by chunk_number asc
+            """,
+            [upload_id]
+        )
+        return cursor.fetchall()
 
 
 def chunk_exists(pool, upload_id: int, chunk_number: int) -> bool:
