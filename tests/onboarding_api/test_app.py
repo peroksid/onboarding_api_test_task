@@ -1,9 +1,18 @@
+import base64
+import hashlib
+
+from uuid import UUID, uuid4
+
+import pytest
+
+from fastapi import BackgroundTasks
 from fastapi.testclient import TestClient
 from importlib_resources import files
 from onboarding_api.app import app
 from onboarding_api.db import get_pool
 from onboarding_api.storage import save_file
-from uuid import UUID, uuid4
+from onboarding_api.tasks import finalize_upload
+
 
 client = TestClient(app)
 
@@ -19,12 +28,9 @@ def test_get_example_simple_client():
     )
 
 
-from unittest.mock import MagicMock
-
-
-def test_initiate_upload():
+def test_initiate_upload(mocker):
     def get_pool_override():
-        mock = MagicMock()
+        mock = mocker.MagicMock()
         mock.connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchone.return_value.__getitem__.return_value = (
             424242
         )
@@ -43,7 +49,8 @@ def test_initiate_upload():
                 "size": 4242,
                 "mime": "text/plain",
                 "hash": hash,
-            }
+            },
+            "chunk_count": 1,
         },
     )
     app.dependency_overrides.clear()
@@ -54,39 +61,62 @@ def test_initiate_upload():
     assert data["session_token"] == str(sentinel_uuid)
 
 
-def test_upload_chunk():
+@pytest.mark.parametrize(
+    "complete_chunk_count,expected_chunk_count,assert_add_task",
+    [(1, 1, True), (1, 2, False)],
+)
+def test_upload_chunk(
+    mocker, complete_chunk_count, expected_chunk_count, assert_add_task
+):
     expected_chunk_id = 424242
+
     def get_pool_override():
-        mock = MagicMock()
+        mock = mocker.MagicMock()
         mock.connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchone.return_value.__getitem__.side_effect = [
-            1,                  # upload exists
-            2,                  # chunk does not exist
-            expected_chunk_id   # chunk db id
+            1,  # upload exists
+            2,  # chunk does not exist
+            (complete_chunk_count, expected_chunk_count),
+            expected_chunk_id,  # chunk db id
         ]
         return mock
 
     def save_file_override():
-        return lambda upload_id, chunk_number, content_bytes: f'/tmp/mock_storage/{upload_id}/{chunk_number}'
-    
+        return (
+            lambda upload_id, chunk_number, content_bytes: f"/tmp/mock_storage/{upload_id}/{chunk_number}"
+        )
+
     app.dependency_overrides[get_pool] = get_pool_override
     app.dependency_overrides[save_file] = save_file_override
 
-    import base64
-    import hashlib
+    spy = mocker.spy(BackgroundTasks, "add_task")
+
     session_token = hashlib.sha256().hexdigest()
-    content = ''.join(["x" for _ in range(4000)])
+    content = "".join(["x" for _ in range(4000)])
     content_bytes = content.encode()
     content_size = len(content)
     content_hash = hashlib.sha256(content_bytes).hexdigest()
     content_b64 = base64.b64encode(content_bytes).decode()
     data = {
-        'number': 1,
-        'size': content_size,
-        'hash': content_hash,
-        'b64_bytes': content_b64
+        "number": 1,
+        "size": content_size,
+        "hash": content_hash,
+        "b64_bytes": content_b64,
     }
-    response = client.post("/upload/424242/chunk", headers={'x-session-token': session_token}, json=data)
+
+    upload_id = 424242
+    response = client.post(
+        f"/upload/{upload_id}/chunk",
+        headers={"x-session-token": session_token},
+        json=data,
+    )
     app.dependency_overrides.clear()
+
     data = response.json()
     assert response.status_code == 200, response.text
     assert data["chunk_id"] == expected_chunk_id
+    if assert_add_task:
+        spy.assert_called_once_with(
+            mocker.ANY, finalize_upload, upload_id  # instance's self
+        )
+    else:
+        spy.assert_not_called()

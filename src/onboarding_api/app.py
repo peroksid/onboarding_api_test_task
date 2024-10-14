@@ -3,7 +3,7 @@ import base64
 
 from typing import Annotated, Union
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import BackgroundTasks, Header, HTTPException, FastAPI, status
 from fastapi.responses import HTMLResponse
 from importlib_resources import files
 
@@ -15,6 +15,7 @@ from .schemas import (
     UploadChunkInput,
     UploadChunkOutput,
 )
+from .tasks import finalize_upload
 
 
 app = FastAPI()
@@ -28,15 +29,10 @@ def get_example_simple_client():
 
 
 @app.post("/upload", response_model=InitiateUploadOutput)
-def initiate_upload(input: InitiateUploadInput, session_token: UUID4Dep, pool: PoolDep):
-    upload_id = create_upload(
-        pool,
-        session_token,
-        input.file_info.name,
-        input.file_info.mime,
-        input.file_info.size,
-        input.file_info.hash,
-    )
+def initiate_upload(
+    initiate_upload_input: InitiateUploadInput, session_token: UUID4Dep, pool: PoolDep
+):
+    upload_id = create_upload(pool, session_token, initiate_upload_input)
     return InitiateUploadOutput(upload_id=upload_id, session_token=str(session_token))
 
 
@@ -46,7 +42,8 @@ def upload_chunk(
     x_session_token: Annotated[Union[str, None], Header()],
     input: UploadChunkInput,
     save_file: SaveFileDep,
-    pool: PoolDep
+    pool: PoolDep,
+    background_tasks: BackgroundTasks,
 ):
     if x_session_token is None:
         raise HTTPException(
@@ -77,7 +74,10 @@ def upload_chunk(
     chunk_path = save_file(
         upload_id=upload_id, chunk_number=input.number, content_bytes=content_bytes
     )
-    chunk_id = create_chunk(
+    complete_chunk_count, expected_chunk_count, chunk_id = create_chunk(
         pool, upload_id=upload_id, chunk_number=input.number, path=chunk_path
     )
+    if complete_chunk_count == expected_chunk_count:
+        background_tasks.add_task(finalize_upload, upload_id)
+
     return UploadChunkOutput(chunk_id=chunk_id)

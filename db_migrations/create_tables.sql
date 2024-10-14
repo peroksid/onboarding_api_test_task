@@ -5,6 +5,8 @@ CREATE TABLE uploads(
     mime character varying,
     hash character (64),
     size int,
+    expected_chunk_count integer,
+    complete_chunk_count integer default 0,
     created_at timestamp with time zone
 );
 

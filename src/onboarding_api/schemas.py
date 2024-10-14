@@ -17,6 +17,7 @@ class InitiateUploadInputFileInfo(BaseModel):
 
 class InitiateUploadInput(BaseModel):
     file_info: InitiateUploadInputFileInfo = Field(description="File info")
+    chunk_count: int = Field(description="Expected chunk count")
 
 
 class UploadChunkInput(BaseModel):
