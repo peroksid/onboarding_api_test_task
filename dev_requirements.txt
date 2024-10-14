@@ -1,1 +1,2 @@
 check-manifest == 0.50
+black == 24.10.0
