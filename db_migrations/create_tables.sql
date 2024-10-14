@@ -7,3 +7,10 @@ CREATE TABLE uploads(
     size int,
     created_at timestamp with time zone
 );
+
+CREATE TABLE chunks(
+    id bigserial PRIMARY KEY,
+    upload_id bigint,
+    number bigint,
+    path character varying
+);

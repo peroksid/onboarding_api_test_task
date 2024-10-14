@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     db_port: str
     db_name: str
 
+    storage_path: str
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
